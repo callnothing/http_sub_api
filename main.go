@@ -8,6 +8,7 @@ package main
 
 import (
 	"log"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kolo/xmlrpc"
@@ -29,20 +30,47 @@ func gettoken() (token string) {
 	return result.Token
 }
 
+func srtTovtt(lines string) {
+	// srtTimePattern := "(\\d){2,}:(\\d){2,}:(\\d){2,},(\\d){3}"
+	// srtPattern := srtTimePattern + " --> " + srtTimePattern
+	// counter := 0
+}
+
 func getsub(token string, moviename string) (subcontent string) {
 	client, _ := xmlrpc.NewClient("http://api.opensubtitles.org/xml-rpc", nil)
 	defer client.Close()
-	// // result := struct {
-	// // 	SubDownloadLink string `xmlrpc:"data"`
-	// // }{}
-	var result string
-	dict := []interface{}{map[string]string{"query": moviename, "sublanguageid": "en"}}
-	if err := client.Call("SearchSubtitles", []interface{}{token, dict}, &result); err == nil {
+
+	request := []interface{}{
+		token,
+		[]struct {
+			MovieName string `xmlrpc:"query"`
+			Language  string `xmlrpc:"sublanguageid"`
+		}{{"ant man", "eng"}}}
+
+	result := struct {
+		Status    string `xmlrpc:"status"`
+		Subtitles []struct {
+			FileName  string `xmlrpc:"SubFileName"`
+			Hash      string `xmlrpc:"SubHash"`
+			Format    string `xmlrpc:"SubFormat"`
+			MovieName string `xmlrpc:"MovieName"`
+			Downloads string `xmlrpc:"SubDownloadsCnt"`
+			URL       string `xmlrpc:"ZipDownloadLink"`
+			Page      string `xmlrpc:"SubtitlesLink"`
+		} `xmlrpc:"data"`
+	}{}
+	// dict := []interface{}{map[string]string{"query": moviename, "sublanguageid": "eng"}}
+	if err := client.Call("SearchSubtitles", request, &result); err != nil {
 		log.Println("打印错误")
 		log.Fatal(err)
 	}
-	log.Println("sub url: " + result)
-	return result
+	basevtturl := "http://dl.opensubtitles.org/en/download/subformat-vtt/filead/src-api/"
+	params := strings.Split(result.Subtitles[0].URL, "/")
+	basevtturl = basevtturl + params[len(params)-3] + "/" + params[len(params)-2] + "/" + params[len(params)-1]
+	log.Println(result.Subtitles[0].URL)
+	log.Println(params)
+	log.Println(basevtturl)
+	return basevtturl
 }
 
 func main() {
