@@ -7,7 +7,10 @@
 package main
 
 import (
+	"io/ioutil"
 	"log"
+	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -30,10 +33,20 @@ func gettoken() (token string) {
 	return result.Token
 }
 
-func srtTovtt(lines string) {
-	// srtTimePattern := "(\\d){2,}:(\\d){2,}:(\\d){2,},(\\d){3}"
-	// srtPattern := srtTimePattern + " --> " + srtTimePattern
-	// counter := 0
+func srtTovtt(lines []string) (newlines []string) {
+	srtTimePattern := "(\\d){2,}:(\\d){2,}:(\\d){2,},(\\d){3}"
+	srtPattern := srtTimePattern + " --> " + srtTimePattern
+	vtthead := []string{}
+	vtthead = append(vtthead, "", "WEBVTT")
+	vtt := []string{}
+	vtt = append(vtthead, lines...)
+	for i := 0; i < len(vtt); i++ {
+		if matched, _ := regexp.MatchString(srtPattern, vtt[i]); matched {
+			vtt[i] = strings.Replace(vtt[i], ",", ".", -1)
+			vtt[i] = strings.Replace(vtt[i], " ", ".", -1)
+		}
+	}
+	return vtt
 }
 
 func getsub(token string, moviename string) (subcontent string) {
@@ -50,13 +63,15 @@ func getsub(token string, moviename string) (subcontent string) {
 	result := struct {
 		Status    string `xmlrpc:"status"`
 		Subtitles []struct {
-			FileName  string `xmlrpc:"SubFileName"`
-			Hash      string `xmlrpc:"SubHash"`
-			Format    string `xmlrpc:"SubFormat"`
-			MovieName string `xmlrpc:"MovieName"`
-			Downloads string `xmlrpc:"SubDownloadsCnt"`
-			URL       string `xmlrpc:"ZipDownloadLink"`
-			Page      string `xmlrpc:"SubtitlesLink"`
+			FileName        string `xmlrpc:"SubFileName"`
+			Hash            string `xmlrpc:"SubHash"`
+			Format          string `xmlrpc:"SubFormat"`
+			MovieName       string `xmlrpc:"MovieName"`
+			Downloads       string `xmlrpc:"SubDownloadsCnt"`
+			URL             string `xmlrpc:"ZipDownloadLink"`
+			Page            string `xmlrpc:"SubtitlesLink"`
+			SubSumCD        string `xmlrpc:"SubSumCD"`
+			SubDownloadLink string `xmlrpc:"SubDownloadLink"`
 		} `xmlrpc:"data"`
 	}{}
 	// dict := []interface{}{map[string]string{"query": moviename, "sublanguageid": "eng"}}
@@ -64,12 +79,9 @@ func getsub(token string, moviename string) (subcontent string) {
 		log.Println("打印错误")
 		log.Fatal(err)
 	}
-	basevtturl := "http://dl.opensubtitles.org/en/download/subformat-vtt/filead/src-api/"
-	params := strings.Split(result.Subtitles[0].URL, "/")
-	basevtturl = basevtturl + params[len(params)-3] + "/" + params[len(params)-2] + "/" + params[len(params)-1]
-	log.Println(result.Subtitles[0].URL)
-	log.Println(params)
-	log.Println(basevtturl)
+	basevtturl := "http://dl.opensubtitles.org/en/download/subencoding-utf8/filead/src-api/"
+	params := strings.Split(result.Subtitles[0].SubDownloadLink, "/")
+	basevtturl = basevtturl + params[len(params)-3] + "/" + params[len(params)-2] + "/" + strings.Split(params[len(params)-1], ".")[0]
 	return basevtturl
 }
 
@@ -88,6 +100,14 @@ func main() {
 			log.Println("Token: " + ostoken)
 		}
 		subdownloadlink := getsub(ostoken, "ant man")
+		resp, err := http.Get(subdownloadlink)
+		if err != nil {
+			// handle error
+		}
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+
+		log.Println(string(body))
 		c.JSON(200, gin.H{
 			"message": subdownloadlink,
 		})
