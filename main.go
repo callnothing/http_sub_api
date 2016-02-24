@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kolo/xmlrpc"
@@ -49,16 +50,23 @@ func srtTovtt(lines []string) (newlines []string) {
 	return vtt
 }
 
-func getsub(token string, moviename string) (subcontent string) {
+func getsub(token string, lang string, imdbid string,subnum int) (subcontent string) {
 	client, _ := xmlrpc.NewClient("http://api.opensubtitles.org/xml-rpc", nil)
 	defer client.Close()
 
 	request := []interface{}{
 		token,
+		// []struct {
+		// 	MovieName string `xmlrpc:"query"`
+		// 	Language  string `xmlrpc:"sublanguageid"`
+		// }{{moviename, "eng"}},
 		[]struct {
-			MovieName string `xmlrpc:"query"`
+			Imdbid string `xmlrpc:"imdbid"`
 			Language  string `xmlrpc:"sublanguageid"`
-		}{{moviename, "eng"}}}
+		}{{imdbid, lang}},
+		struct {
+			Limit int `xmlrpc:"limit"`
+		}{10}}
 
 	result := struct {
 		Status    string `xmlrpc:"status"`
@@ -74,13 +82,15 @@ func getsub(token string, moviename string) (subcontent string) {
 			SubDownloadLink string `xmlrpc:"SubDownloadLink"`
 		} `xmlrpc:"data"`
 	}{}
-	// dict := []interface{}{map[string]string{"query": moviename, "sublanguageid": "eng"}}
 	if err := client.Call("SearchSubtitles", request, &result); err != nil {
-		log.Println("打印错误")
 		log.Fatal(err)
 	}
 	basevtturl := "http://dl.opensubtitles.org/en/download/subencoding-utf8/filead/src-api/"
-	params := strings.Split(result.Subtitles[0].SubDownloadLink, "/")
+	log.Println(len(result.Subtitles))
+	if subnum >= len(result.Subtitles) {
+		subnum = len(result.Subtitles) - 1
+	}
+	params := strings.Split(result.Subtitles[subnum].SubDownloadLink, "/")
 	basevtturl = basevtturl + params[len(params)-3] + "/" + params[len(params)-2] + "/" + strings.Split(params[len(params)-1], ".")[0]
 	return basevtturl
 }
@@ -93,14 +103,17 @@ func main() {
 			"message": "pong",
 		})
 	})
-	r.GET("/searchsubtitle/:moviename/", func(c *gin.Context) {
+	r.GET("/searchsubtitle/:lang/:imdbid/:subnum/", func(c *gin.Context) {
 		// cCp := c.Copy()
 		if ostoken == "" {
 			ostoken = gettoken()
 			log.Println("Token: " + ostoken)
 		}
-		moviename := c.Param("moviename")
-		subdownloadlink := getsub(ostoken, moviename)
+		lang := c.Param("lang")
+		imdbid := c.Param("imdbid")
+		subnum, err := strconv.Atoi(c.Param("subnum"))
+
+		subdownloadlink := getsub(ostoken, lang, imdbid, subnum)
 		log.Println(subdownloadlink)
 		resp, err := http.Get(subdownloadlink)
 		if err != nil {
