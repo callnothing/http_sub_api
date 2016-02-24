@@ -37,7 +37,7 @@ func srtTovtt(lines []string) (newlines []string) {
 	srtTimePattern := "(\\d){2,}:(\\d){2,}:(\\d){2,},(\\d){3}"
 	srtPattern := srtTimePattern + " --> " + srtTimePattern
 	vtthead := []string{}
-	vtthead = append(vtthead, "", "WEBVTT")
+	vtthead = append(vtthead, "", "WEBVTT\n")
 	vtt := []string{}
 	vtt = append(vtthead, lines...)
 	for i := 0; i < len(vtt); i++ {
@@ -58,7 +58,7 @@ func getsub(token string, moviename string) (subcontent string) {
 		[]struct {
 			MovieName string `xmlrpc:"query"`
 			Language  string `xmlrpc:"sublanguageid"`
-		}{{"ant man", "eng"}}}
+		}{{moviename, "eng"}}}
 
 	result := struct {
 		Status    string `xmlrpc:"status"`
@@ -93,24 +93,29 @@ func main() {
 			"message": "pong",
 		})
 	})
-	r.GET("/searchsubtitle", func(c *gin.Context) {
+	r.GET("/searchsubtitle/:moviename/", func(c *gin.Context) {
 		// cCp := c.Copy()
 		if ostoken == "" {
 			ostoken = gettoken()
 			log.Println("Token: " + ostoken)
 		}
-		subdownloadlink := getsub(ostoken, "ant man")
+		moviename := c.Param("moviename")
+		subdownloadlink := getsub(ostoken, moviename)
+		log.Println(subdownloadlink)
 		resp, err := http.Get(subdownloadlink)
 		if err != nil {
 			// handle error
 		}
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
+		lines := strings.Split(string(body), "\n")
+		newlines := srtTovtt(lines)
 
-		log.Println(string(body))
-		c.JSON(200, gin.H{
-			"message": subdownloadlink,
-		})
+		// c.JSON(200, gin.H{
+		// 	"message": strings.Join(newlines,""),
+		// })
+		c.String(200, strings.Join(newlines,""))
+
 	})
 	r.Run("localhost:9002") // listen and server on 0.0.0.0:8080
 }
