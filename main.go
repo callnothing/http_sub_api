@@ -130,5 +130,5 @@ func main() {
 		c.String(200, strings.Join(newlines,""))
 
 	})
-	r.Run("localhost:9002") // listen and server on 0.0.0.0:8080
+	r.Run("0.0.0.0:9002") // listen and server on 0.0.0.0:8080
 }
