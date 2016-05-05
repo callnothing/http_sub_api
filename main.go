@@ -103,6 +103,7 @@ func main() {
 			"message": "pong",
 		})
 	})
+	// http://127.0.0.1:9002/searchsubtitle/zhi/0371746/1/
 	r.GET("/searchsubtitle/:lang/:imdbid/:subnum/", func(c *gin.Context) {
 		// cCp := c.Copy()
 		if ostoken == "" {
@@ -130,5 +131,5 @@ func main() {
 		c.String(200, strings.Join(newlines,""))
 
 	})
-	r.Run("0.0.0.0:9002") // listen and server on 0.0.0.0:8080
+	r.Run("0.0.0.0:9002") // listen and server on 0.0.0.0:9002
 }
